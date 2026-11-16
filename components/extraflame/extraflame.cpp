@@ -65,12 +65,15 @@ namespace esphome
         uint8_t checksum_calc = (this->request_.command[0] + this->request_.command[1] + response[1]) & 0xFF;
         if (checksum_calc != response[0])
         {
-          ESP_LOGW(TAG, "Checksum invalid. Skipping update");
+          this->checksum_errors_++;
+        ESP_LOGW(TAG, "Checksum invalid. Skipping update");
           this->reset_input_buffer();
           success = false;
         }
         else
         {
+          this->successful_requests_++;
+          this->last_response_time_ms_ = millis() - this->request_started_ms_;
           this->notify_components_(get_memory_from_command(this->request_.command[0]), this->request_.command[1],
                                    int(value));
         }
@@ -136,7 +139,9 @@ namespace esphome
     {
       this->status_ = REQUEST_SEND;
       this->request_ = request;
+    this->request_started_ms_ = millis();
       this->set_timeout(CURRENT_REQUEST, 1000, [this] {
+      this->timeout_errors_++;
         if (this->request_.command.size() == 2)
         {
           ESP_LOGW(TAG, "No response for given command: 0x%02X 0x%02X", this->request_.command[0],
@@ -232,7 +237,7 @@ namespace esphome
       }
       else
       {
-        this->request_queue_.clear();
+        
         std::ostringstream stringStream;
         stringStream << "{\"memory\":\"0x" << std::hex << static_cast<int>(memory) << "\"";
         this->dump_ = Dump{

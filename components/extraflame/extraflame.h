@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #ifdef USE_EXTRAFLAME_DUMP
 #include "esphome/core/automation.h"
+
 #endif
 
 namespace esphome
@@ -78,6 +79,12 @@ namespace esphome
       std::vector<ExtraflameRequest> request_queue_;
       ExtraflameRequest request_;
       StatusRequest status_{NO_REQUEST};
+      // Kommunikationsdiagnose
+      uint32_t successful_requests_{0};
+      uint32_t timeout_errors_{0};
+      uint32_t checksum_errors_{0};
+      uint32_t last_response_time_ms_{0};
+      uint32_t request_started_ms_{0};
       std::vector<ExtraflameComponent *> components_{};
     };
 
