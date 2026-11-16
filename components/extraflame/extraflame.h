@@ -56,6 +56,12 @@ namespace esphome
       void reset_input_buffer();
 
       void add_component(ExtraflameComponent *component);
+      // Kommunikationsdiagnose
+      uint32_t get_successful_requests() const { return successful_requests_; }
+      uint32_t get_timeout_errors() const { return timeout_errors_; }
+      uint32_t get_checksum_errors() const { return checksum_errors_; }
+      uint32_t get_last_response_time_ms() const { return last_response_time_ms_; }
+      size_t get_queue_length() const { return request_queue_.size(); }
 
     protected:
       enum StatusRequest
