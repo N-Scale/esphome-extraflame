@@ -78,6 +78,7 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint8_t),
         }
     ),
+    synchronous=False,
 )
 async def extraflame_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -108,6 +109,7 @@ async def extraflame_write_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=False,
 )
 async def extraflame_dump_to_code(config, action_id, template_arg, args):
     if CONF_ON_DUMP_FINISH in config:
