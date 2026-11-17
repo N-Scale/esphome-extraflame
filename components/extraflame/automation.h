@@ -12,11 +12,11 @@ namespace esphome
   {
     static const char *TAG = "extraflame.hub";
 
-    static bool is_valid_byte(uint8_t value, std::string name)
+    static bool is_valid_byte(int64_t value, const char *name)
     {
       if (value < 0x00 || value > 0xFF)
       {
-        ESP_LOGE(TAG, "'%s' value is invalid!! Must be between 0x00 - 0xFF but was 0x%02X", name.c_str(), value);
+        ESP_LOGE(TAG, "'%s' must be between 0 and 255, got %lld", name, static_cast<long long>(value));
         return false;
       }
 
@@ -27,8 +27,8 @@ namespace esphome
     class ExtraflameWriteAction : public Action<Ts...>, public Parented<ExtraflameHub>
     {
     public:
-      TEMPLATABLE_VALUE(uint8_t, address)
-      TEMPLATABLE_VALUE(uint8_t, value)
+      TEMPLATABLE_VALUE(int64_t, address)
+      TEMPLATABLE_VALUE(int64_t, value)
 
       void set_memory(const uint8_t memory) { this->memory_ = memory; }
       void set_expected_values(std::vector<uint8_t> values) { this->expected_values_ = std::move(values); }
@@ -37,13 +37,15 @@ namespace esphome
       {
         this->num_running_++;
 
-        uint8_t address = this->address_.value(x...);
-        uint8_t value_write = this->value_.value(x...);
-        if (!is_valid_byte(address, "address") || !is_valid_byte(value_write, "value"))
+        const auto raw_address = this->address_.value(x...);
+        const auto raw_value = this->value_.value(x...);
+        if (!is_valid_byte(raw_address, "address") || !is_valid_byte(raw_value, "value"))
         {
           this->stop_complex();
           return;
         }
+        const auto address = static_cast<uint8_t>(raw_address);
+        const auto value_write = static_cast<uint8_t>(raw_value);
 
         auto request = ExtraflameRequest{
             .command = {this->memory_, address},
@@ -103,8 +105,8 @@ namespace esphome
     class ExtraflameDumpAction : public Action<Ts...>, public Parented<ExtraflameHub>
     {
     public:
-      TEMPLATABLE_VALUE(uint8_t, start)
-      TEMPLATABLE_VALUE(uint8_t, end)
+      TEMPLATABLE_VALUE(int64_t, start)
+      TEMPLATABLE_VALUE(int64_t, end)
 
       void set_memory(const uint8_t memory) { this->memory_ = memory; }
 
@@ -122,7 +124,8 @@ namespace esphome
           return;
         }
 
-        this->parent_->start_dumping(this->memory_, start, end, this->finish_triggers_);
+        this->parent_->start_dumping(this->memory_, static_cast<uint8_t>(start), static_cast<uint8_t>(end),
+                                     this->finish_triggers_);
 
         this->play_next_(x...);
       }

@@ -98,9 +98,9 @@ async def extraflame_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.int64)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.int64)
     cg.add(var.set_value(template_))
     cg.add(var.set_memory(get_memory_address(config[CONF_MEMORY])))
     if CONF_EXPECTED_VALUES in config:
@@ -134,9 +134,9 @@ async def extraflame_dump_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_ = await cg.templatable(config[CONF_START], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_START], args, cg.int64)
     cg.add(var.set_start(template_))
-    template_ = await cg.templatable(config[CONF_END], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_END], args, cg.int64)
     cg.add(var.set_end(template_))
     cg.add(var.set_memory(get_memory_address(config[CONF_MEMORY])))
 
