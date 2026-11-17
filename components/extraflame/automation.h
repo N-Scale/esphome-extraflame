@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <utility>
+
 #include "extraflame.h"
 #include "esphome/core/automation.h"
 
@@ -28,6 +31,7 @@ namespace esphome
       TEMPLATABLE_VALUE(uint8_t, value)
 
       void set_memory(const uint8_t memory) { this->memory_ = memory; }
+      void set_expected_values(std::vector<uint8_t> values) { this->expected_values_ = std::move(values); }
 
       void play_complex(Ts... x) override
       {
@@ -46,6 +50,16 @@ namespace esphome
             .on_response = [this, address, value_write, x...](uint8_t value, bool success) {
               if (!success)
               {
+                this->stop_complex();
+                return;
+              }
+
+              if (!this->expected_values_.empty() &&
+                  std::find(this->expected_values_.begin(), this->expected_values_.end(), value) ==
+                      this->expected_values_.end())
+              {
+                ESP_LOGW(TAG, "Write to 0x%02X:0x%02X skipped: unexpected current value 0x%02X",
+                         this->memory_, address, value);
                 this->stop_complex();
                 return;
               }
@@ -81,6 +95,7 @@ namespace esphome
 
     protected:
       uint8_t memory_{};
+      std::vector<uint8_t> expected_values_;
     };
 
 #ifdef USE_EXTRAFLAME_DUMP

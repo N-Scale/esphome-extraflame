@@ -15,6 +15,7 @@ from .const import (
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@edenhaus"]
+CONF_EXPECTED_VALUES = "expected_values"
 
 extraflame_ns = cg.esphome_ns.namespace("extraflame")
 ExtraflameHub = extraflame_ns.class_("ExtraflameHub", cg.Component, uart.UARTDevice)
@@ -86,6 +87,9 @@ async def to_code(config):
             cv.Required(CONF_MEMORY): is_memory_address,
             cv.Required(CONF_ADDRESS): cv.templatable(cv.hex_uint8_t),
             cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint8_t),
+            cv.Optional(CONF_EXPECTED_VALUES): cv.All(
+                cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1)
+            ),
         }
     ),
     synchronous=False,
@@ -99,6 +103,8 @@ async def extraflame_write_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint8)
     cg.add(var.set_value(template_))
     cg.add(var.set_memory(get_memory_address(config[CONF_MEMORY])))
+    if CONF_EXPECTED_VALUES in config:
+        cg.add(var.set_expected_values(config[CONF_EXPECTED_VALUES]))
     return var
 
 @automation.register_action(

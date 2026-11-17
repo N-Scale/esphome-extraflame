@@ -74,6 +74,7 @@ namespace esphome
 
       void next_request_();
       void send_request_(ExtraflameRequest request);
+      void fail_request_();
       void notify_components_(uint8_t memory_hex, uint8_t address, int value);
       bool is_request_echo_(std::array<uint8_t, 2> response, int request_part_num);
 
@@ -85,6 +86,8 @@ namespace esphome
       std::vector<ExtraflameRequest> request_queue_;
       ExtraflameRequest request_;
       StatusRequest status_{NO_REQUEST};
+      bool recovering_{false};
+      uint32_t last_rx_activity_ms_{0};
       // Kommunikationsdiagnose
       uint32_t successful_requests_{0};
       uint32_t timeout_errors_{0};

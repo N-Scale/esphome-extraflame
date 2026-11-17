@@ -12,6 +12,7 @@ namespace esphome
 
     static const char *TAG = "extraflame.hub";
     static const char *CURRENT_REQUEST = "extraflame.hub.request";
+    static constexpr uint32_t RX_RECOVERY_QUIET_MS = 100;
 
     static uint8_t get_memory_from_command(uint8_t command)
     {
@@ -44,42 +45,48 @@ namespace esphome
     {
       while (this->available() >= 2 && this->status_ != NO_REQUEST)
       {
-        auto response = *this->read_array<2>();
+        auto frame = this->read_array<2>();
+        if (!frame.has_value())
+          break;
+        const auto &response = *frame;
 
         ESP_LOGV(TAG, "Read value: 0x%02X 0x%02X", response[0], response[1]);
 
-        if ((this->status_ == REQUEST_SEND && this->is_request_echo_(response, 0)) ||
-            (this->status_ == REQUEST_ECHO && this->request_.command.size() == 4 && this->is_request_echo_(response, 2)))
+        if (this->status_ == REQUEST_SEND && this->is_request_echo_(response, 0))
         {
           ESP_LOGV(TAG, "Response was request echo");
           this->status_ = REQUEST_ECHO;
           continue;
         }
+        if (this->status_ == REQUEST_ECHO && this->request_.command.size() == 4 &&
+            this->is_request_echo_(response, 2))
+        {
+          ESP_LOGV(TAG, "Response was second part of request echo");
+          this->status_ = REQUEST_ECHO_PART2;
+          continue;
+        }
 
         this->cancel_timeout(CURRENT_REQUEST);
-        int value = response[1];
-        bool success = true;
+        uint8_t value = response[1];
 
         // checksum is calculated by (memory + address + value) & 0xFF
         uint8_t checksum_calc = (this->request_.command[0] + this->request_.command[1] + response[1]) & 0xFF;
         if (checksum_calc != response[0])
         {
           this->checksum_errors_++;
-        ESP_LOGW(TAG, "Checksum invalid. Skipping update");
-          this->reset_input_buffer();
-          success = false;
+          ESP_LOGW(TAG, "Invalid checksum for command 0x%02X 0x%02X: got 0x%02X, expected 0x%02X",
+                   this->request_.command[0], this->request_.command[1], response[0], checksum_calc);
+          this->fail_request_();
+          break;
         }
-        else
-        {
-          this->successful_requests_++;
-          this->last_response_time_ms_ = millis() - this->request_started_ms_;
-          this->notify_components_(get_memory_from_command(this->request_.command[0]), this->request_.command[1],
-                                   int(value));
-        }
+
+        this->successful_requests_++;
+        this->last_response_time_ms_ = millis() - this->request_started_ms_;
+        this->notify_components_(get_memory_from_command(this->request_.command[0]), this->request_.command[1], value);
 
         if (this->request_.on_response != nullptr)
         {
-          this->request_.on_response(value, success);
+          this->request_.on_response(value, true);
         }
         this->status_ = NO_REQUEST;
       }
@@ -89,6 +96,18 @@ namespace esphome
 
     void ExtraflameHub::next_request_()
     {
+      if (this->recovering_)
+      {
+        if (this->available() > 0)
+        {
+          this->reset_input_buffer();
+          this->last_rx_activity_ms_ = millis();
+        }
+        if (millis() - this->last_rx_activity_ms_ < RX_RECOVERY_QUIET_MS)
+          return;
+        this->recovering_ = false;
+      }
+
       if (this->status_ == NO_REQUEST)
       {
 #ifdef USE_EXTRAFLAME_DUMP
@@ -136,11 +155,13 @@ namespace esphome
 
     void ExtraflameHub::send_request_(ExtraflameRequest request)
     {
+      // A reply left in RX while idle cannot belong to the next request.
+      this->reset_input_buffer();
       this->status_ = REQUEST_SEND;
       this->request_ = request;
-    this->request_started_ms_ = millis();
+      this->request_started_ms_ = millis();
       this->set_timeout(CURRENT_REQUEST, 1000, [this] {
-      this->timeout_errors_++;
+        this->timeout_errors_++;
         if (this->request_.command.size() == 2)
         {
           ESP_LOGW(TAG, "No response for given command: 0x%02X 0x%02X", this->request_.command[0],
@@ -151,12 +172,7 @@ namespace esphome
           ESP_LOGW(TAG, "No response for given command: 0x%02X 0x%02X  0x%02X  0x%02X", this->request_.command[0],
                    this->request_.command[1], this->request_.command[2], this->request_.command[3]);
         }
-        this->reset_input_buffer();
-        if (this->request_.on_response != nullptr)
-        {
-          this->request_.on_response(0x00, false);
-        }
-        this->status_ = NO_REQUEST;
+        this->fail_request_();
       });
 
       if (this->request_.command.size() == 2)
@@ -170,6 +186,17 @@ namespace esphome
       }
 
       this->write_array(this->request_.command);
+    }
+
+    void ExtraflameHub::fail_request_()
+    {
+      // Late replies and partial frames must clear before another request can use RX.
+      this->reset_input_buffer();
+      this->last_rx_activity_ms_ = millis();
+      this->recovering_ = true;
+      if (this->request_.on_response != nullptr)
+        this->request_.on_response(0, false);
+      this->status_ = NO_REQUEST;
     }
 
     void ExtraflameHub::add_request(ExtraflameRequest request, bool priority)
@@ -215,11 +242,12 @@ namespace esphome
 
     void ExtraflameHub::reset_input_buffer()
     {
-      ESP_LOGW(TAG, "Reseting buffer and going on with next request");
+      uint8_t discarded;
       while (this->available() > 0)
       {
-        // to clear the buffer
-        this->read();
+        if (!this->read_byte(&discarded))
+          break;
+        ESP_LOGV(TAG, "Discarding stale RX byte 0x%02X", discarded);
       }
     }
 
