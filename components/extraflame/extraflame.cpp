@@ -38,7 +38,6 @@ namespace esphome
         component->dump_config_internal();
       }
 
-      this->check_uart_settings(1200, 2, uart::UARTParityOptions::UART_CONFIG_PARITY_NONE, 8);
     }
 
     void ExtraflameHub::loop()
