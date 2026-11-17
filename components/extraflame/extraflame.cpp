@@ -189,6 +189,27 @@ namespace esphome
 
     void ExtraflameHub::add_request(std::vector<uint8_t> command)
     {
+      // Ignore duplicate reads already active or queued.
+      if (command.size() == 2)
+      {
+        if (this->status_ != NO_REQUEST &&
+            this->request_.command.size() == 2 &&
+            this->request_.command == command)
+        {
+          return;
+        }
+
+        for (const auto &queued : this->request_queue_)
+        {
+          if (queued.command.size() == 2 &&
+              queued.on_response == nullptr &&
+              queued.command == command)
+          {
+            return;
+          }
+        }
+      }
+
       auto request = ExtraflameRequest{.command = command, .on_response = nullptr};
       this->add_request(request, false);
     }
